@@ -49,7 +49,7 @@ for file in $@; do
                     echo "$user,$passHash" >> /var/secure/user_passwords.csv
                 else
                     echo "failed to create user $user, check the logs..."
-                    continue
+                    exit 1
                 fi
             fi
             

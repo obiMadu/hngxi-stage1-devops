@@ -67,8 +67,7 @@ for file in $@; do
                 groupExists=$(grep "$group" /etc/group | wc -l)
                 if [ $groupExists -ge 1 ]; then
                     echo "group $group already exists"
-                    usermod -aG $group $user
-                    echo "added user $user to group $group"
+                    exit 1
                 else
                     echo "group $group doesn't exist, creating it..."
                     groupadd $group

@@ -45,7 +45,8 @@ for file in $@; do
                     echo -e "$password\n$password" | passwd $user
                     sleep 1
                     echo "user $user created successfully with password"
-                    echo "$user,$password" >> /var/secure/user_passwords.csv
+                    passHash=$(grep $user /etc/shadow | awk '{print $2}')
+                    echo "$user,$passHash" >> /var/secure/user_passwords.csv
                 else
                     echo "failed to create user $user, check the logs..."
                     continue

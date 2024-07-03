@@ -56,18 +56,27 @@ The script `create_users.sh` reads a text file where each line contains a userna
       user=$(echo "$user" | xargs)
       groups=$(echo "$groups" | xargs)
 
+      # Create personal group
+      if ! getent group "$user" &>/dev/null; then
+        groupadd "$user"
+        log_message "Created personal group $user."
+      fi
+
+      # Create user
       if id "$user" &>/dev/null; then
         log_message "User $user already exists."
       else
         useradd -m -g "$user" "$user"
         log_message "Created user $user with personal group $user."
 
+        # Generate and set password
         password=$(generate_password)
         echo "$user:$password" | chpasswd
         echo "$user,$password" >> $PASSWORD_FILE
         log_message "Generated and set password for $user."
       fi
 
+      # Create and add user to groups
       IFS=',' read -ra GROUP_ARRAY <<< "$groups"
       for group in "${GROUP_ARRAY[@]}"; do
         group=$(echo "$group" | xargs)

@@ -1,76 +1,93 @@
-# User Management Bash Script
+# Technical Article
 
-## Overview
+## Automating User and Group Creation with a Bash Script
 
-This script is designed to manage user accounts and their associated groups on a Unix-based system. It performs tasks such as creating users, assigning them to groups, and generating passwords. The script logs all its activities to `/var/log/user_management.log` and stores generated passwords in `/var/secure/user_passwords.csv`.
+As a SysOps engineer, managing users and groups is a critical task, especially when onboarding new developers. Automating this process ensures consistency and efficiency. In this article, I'll walk you through a bash script designed to create users and groups based on a provided text file. This script also sets up home directories, assigns appropriate permissions, generates random passwords, and logs all actions.
 
-## Prerequisites
+You can learn more about HNG Internship opportunities [here](https://hng.tech/internship) and [here](https://hng.tech/hire).
 
-- The script must be run as a superuser.
-- Ensure that Bash and necessary user management commands (`useradd`, `usermod`, `groupadd`, `passwd`) are available on the system.
+## Script Overview
 
-## Usage
+The script `create_users.sh` reads a text file where each line contains a username and a semicolon-separated list of groups. It creates each user and their personal group (which has the same name as the username), assigns the user to additional specified groups, sets up home directories, and logs all actions to `/var/log/user_management.log`. Generated passwords are stored securely in `/var/secure/user_passwords.csv`.
 
-### Running the Script
+## Script Breakdown
 
-To execute the script, use the following command:
+1. **Root Check**: Ensure the script runs with root privileges.
+    ```bash
+    if [ "$EUID" -ne 0 ]; then
+      echo "Please run as root."
+      exit 1
+    fi
+    ```
 
-```bash
-sudo ./user_management.sh user_groups_file1 user_groups_file2 ...
-```
+2. **Argument Check**: Verify that the filename argument is provided.
+    ```bash
+    if [ -z "$1" ]; then
+      echo "Usage: $0 <filename>"
+      exit 1
+    fi
+    ```
 
-Each file should contain lines in the format `username;group1,group2,...`.
+3. **File Preparation**: Create log and password files if they don't exist, and set secure permissions on the password file.
+    ```bash
+    touch $LOG_FILE
+    touch $PASSWORD_FILE
+    chmod 600 $PASSWORD_FILE
+    ```
 
-### Script Workflow
+4. **Logging Function**: Define a function to log messages with timestamps.
+    ```bash
+    log_message() {
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a $LOG_FILE
+    }
+    ```
 
-1. **Check for Superuser Privileges**:
-   The script first checks if it is run as a superuser. If not, it exits with a message indicating that superuser privileges are required.
+5. **Password Generation**: Define a function to generate random passwords.
+    ```bash
+    generate_password() {
+      tr -dc A-Za-z0-9 </dev/urandom | head -c 12
+    }
+    ```
 
-2. **Log Initialization**:
-   The script initializes logging by redirecting all outputs to `/var/log/user_management.log`. This ensures that all activities are recorded for auditing purposes.
+6. **Reading the Input File**: Process each line in the input file.
+    ```bash
+    while IFS=';' read -r user groups; do
+      # Remove leading/trailing whitespace
+      user=$(echo "$user" | xargs)
+      groups=$(echo "$groups" | xargs)
 
-3. **Creating Secure Password Storage**:
-   The script creates the directory `/var/secure` and the file `user_passwords.csv` to store generated passwords securely with appropriate permissions.
+      if id "$user" &>/dev/null; then
+        log_message "User $user already exists."
+      else
+        useradd -m -g "$user" "$user"
+        log_message "Created user $user with personal group $user."
 
-4. **Processing Input Files**:
-   The script processes each provided file, line by line, to create users and assign them to groups.
+        password=$(generate_password)
+        echo "$user:$password" | chpasswd
+        echo "$user,$password" >> $PASSWORD_FILE
+        log_message "Generated and set password for $user."
+      fi
 
-   - **User Creation**:
-     - If the user already exists, the script logs the event and skips to the next user.
-     - If the user does not exist, the script creates the user, generates a random password, sets the password, and logs the credentials in `user_passwords.csv`.
+      IFS=',' read -ra GROUP_ARRAY <<< "$groups"
+      for group in "${GROUP_ARRAY[@]}"; do
+        group=$(echo "$group" | xargs)
+        if ! getent group "$group" &>/dev/null; then
+          groupadd "$group"
+          log_message "Created group $group."
+        fi
+        usermod -aG "$group" "$user"
+        log_message "Added user $user to group $group."
+      done
 
-   - **Group Management**:
-     - For each group listed for a user, the script checks if the group exists. If not, it creates the group.
-     - The script then adds the user to the specified groups, logging the actions.
+    done < "$INPUT_FILE"
 
-5. **Error Handling**:
-   The script checks for the existence of input files and logs any errors encountered during execution.
+    log_message "User creation process completed."
 
-## Example
+    exit 0
+    ```
 
-### Input File Format
+## Conclusion
 
-An example input file (`users_groups.txt`) might look like this:
+This script automates the user and group creation process, ensuring that each user has a personal group, is added to specified groups, and has a secure, randomly generated password. All actions are logged for auditing purposes, and the script handles existing users and groups gracefully.
 
-```
-johndoe;developers,admins
-janedoe;users,managers
-```
-
-### Running the Script
-
-```bash
-sudo ./user_management.sh users_groups.txt
-```
-
-## Logging
-
-All script activities are logged to `/var/log/user_management.log` for auditing purposes. Generated passwords are stored securely in `/var/secure/user_passwords.csv`.
-
-## Additional Information
-
-To learn more about similar projects and opportunities, check out the [HNG Internship](https://hng.tech/internship) and [HNG Hire](https://hng.tech/hire) websites.
-
----
-
-For more detailed information and to explore premium features, visit [HNG Premium](https://hng.tech/premium).
+For more on the HNG Internship, visit [HNG Internship](https://hng.tech/internship) and [HNG Hire](https://hng.tech/hire).
